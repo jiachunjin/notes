@@ -1,0 +1,225 @@
+\documentclass{article}
+
+\usepackage{authblk}
+% \usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{amsthm}
+\usepackage{graphicx}
+
+
+
+\input{../general.tex}
+% \usepackage[UTF8]{ctex} % Chinese support
+
+
+\title{\textbf{\Large Notes on Stein's Method (221201)}}
+\author{Jiachun Jin}
+\affil{\textit{\small School of Information Science and Technology}}
+\affil{\textit{\small ShanghaiTech University}}
+\date{}
+
+\begin{document}
+\maketitle
+This note will contain some core concepts required to understand the Stein's method.
+\tableofcontents
+
+\section{Kernelized Stein discrepancy}
+\subsection{Background \citep{liu2016short}}
+Given data: $\{\rvx_i\}_{i=1}^n$, and model: $p(\rvx)$. We want some discrepancy measures that can tell the consistency between data and models. They have wide applications in:
+\begin{itemize}
+    \item Model evalution: $\{\rvx_i\}_{i=1}^n$ and $p(\rvx)$ are both given, (discrepancy measures tell us how well a model fits data).
+    \item Frequentist parameter learning: $\{\rvx_i\}_{i=1}^n$ is given and we optimize $p(\rvx)$, (find the model that minimizes the discrepancy with data).
+    \item Sampling for Bayesian inference: $p(\rvx)$ is given and we want to optimize $\{\rvx_i\}_{i=1}^n$, (find a set of points ("data") to approximate the posterior distribution).
+\end{itemize}
+The discrepancy measure should to be tractably computable, the famous KL divergence $\KL\left[ p(\rvx) \parallel q(\rvx) \right] = \E_{p(\rvx)}\left[ \log \frac{p(\rvx)}{q(\rvx)} \right]$  is not ideal for this case because:
+\begin{itemize}
+    \item $\log q(\rvx)$ is required, however, a lot models are only known up to a normalization constant, e.g. energy based models (EBMs): $q(\rvx) = \exp\left(-E(\rvx)\right) / Z$, where $Z = \int_{\mathcal{X}}\exp\left( -E(\rvx) \right)\d\rvx$ is the normalization constant.
+    \item It is not straightforward to talk about the KL divergence $\KL\left( \{\rvx_i\}_{i=1}^n \parallel p(\rvx) \right)$ between a set of data points (drawn from a distribution $q$) and the model, since in this way we have to do density estimation (or entropy estimation) for $\{\rvx_i\}_{i=1}^n$.
+\end{itemize}
+Kernelized Stein discrepancy (KSD) \citep{liu2016kernelized} provides a convenient way to directly assess the compatibility of data-model pairs, even for models with intractable normalization constant.
+
+For simplicity, in the following $f(\cdot)$ is always referred to a scalar-valued function, and the data points $\rvx$'s are also scalars. 
+
+\subsection{Stein's identity}
+For distributions with smooth density $p(\rvx)$ and function $f(\rvx)$ (supported on $\mathbb{R}$) that satisfies $\lim_{\|\rvx\| \to \infty} p(\rvx)f(\rvx) = 0$, we have:
+\begin{equation}\label{eq.SteinIdentity}
+    \E_{p(\rvx)}\left[ \nabla_\rvx\log p(\rvx) f(\rvx) + \nabla_\rvx f(\rvx) \right] = 0, \quad \forall f.
+\end{equation}
+\begin{proof}[Proof]
+    \begin{equation}
+        \begin{aligned}
+            \int p(\rvx)\left[ \nabla_\rvx \log p(\rvx) f(\rvx) + \nabla_\rvx f(\rvx)\right] &= \int \left[ \nabla_\rvx p(\rvx) f(\rvx) + p(\rvx)\nabla_\rvx f(\rvx) \right] \d \rvx \\
+            &= \int \nabla_\rvx\left[ f(\rvx)p(\rvx) \right]\d\rvx \\
+            &= \lim_{\rvx \to \infty} p(\rvx)f(\rvx) - \lim_{\rvx \to -\infty} p(\rvx)f(\rvx) \\
+            &= 0.
+        \end{aligned}
+    \end{equation}
+\end{proof}
+\noindent Here we define $\mathcal{A}_pf(\rvx) = \nabla_\rvx\log p(\rvx) f(\rvx) + \nabla_\rvx f(\rvx)$, where $\mathcal{A}_p$ is called the \textit{Stein operator}. And we say that a function $f: \mathcal{X} \to \mathbb{R}$ is in the \textit{Stein class} of $p$ if $f$ is smooth and satisfies:
+\begin{equation}
+    \int_{\rvx \in \mathcal{X}} \nabla_\rvx \left( f(\rvx) p(\rvx) \right)\d \rvx = 0.
+\end{equation}
+
+\subsection{(Kernelized) Stein discrepancy}
+Consider $\E_q\left[ \mathcal{A}_pf(\rvx) \right] = \E_q\left[ \mathcal{A}_pf(\rvx) \right] - \E_q\left[ \mathcal{A}_qf(\rvx) \right] = \E_{q(\rvx)}\left[ f(\rvx)\left( \nabla_\rvx\log p(\rvx) - \nabla_\rvx \log q(\rvx) \right) \right]$ (the equation holds because of \lemref{lemma.1}). In this way, Stein's identity provides a mechanism to compare two different distributions. It is convenient to consider the most discriminant $f$ that maximizes the violation of Stein's identity, this leads to the notion of Stein discrepancy for measuring the difference between two distributions $p$ and $q$:
+\begin{equation}\label{eq.SD}
+    \sqrt{S(q, p)} = \max_{f \in \mathcal{F}}\E_{q(\rvx)}\left[\mathcal{A}_p f(\rvx)\right],
+\end{equation}
+where $\mathcal{F}$ is a proper set of functions that we optimize over.
+
+When $f$ can be represented as a linear combination $f(\cdot) = \sum_i w_i f_i(\cdot)$  of a set of \textbf{known} basis functions $f_i(\cdot)$, with unknown coefficients $w_i$ (\textcolor{red}{give an example of Fourier series here}). In this case we have:
+\begin{equation}
+    \begin{aligned}
+        \E_q\left[ \mathcal{A}_p f \right] &= \E_{\rvx \sim q}\left[ \mathcal{A}_p \sum_i w_i f_i(\rvx) \right] \\
+        &= \sum_i w_i \beta_i,
+    \end{aligned}
+\end{equation}
+where $\beta_i = \E_{q(\rvx)}\left[ \mathcal{A}_p f_i(\rvx) \right]$, which is a fixed scalar when $\rvx$ is a scalar. Then the optimization problem delivered in \eqref{eq.SD} becomes to:
+\begin{equation}\label{eq.SDoptimization}
+    \max_{\rvw} \sum_{i} w_i\beta_i, \quad s.t. \quad \|\rvw\| \leq 1,
+\end{equation}
+and the optimal solution with closed form can be easily got as $w^*_i = \beta_i / \| \beta_i \|$. 
+
+Kernelized Stein discrepancy (KSD) takes $\mathcal{F}$ to be the unit ball of a reproducing kernel Hilbert space (RKHS) with kernel $k(\cdot, \cdot)$. (The RKHS $\mathcal{H}$ related to $k(\cdot, \cdot)$ contains functions of form $f(\cdot) = \sum_i w_i k({\rvx_i}, \cdot)$. \textcolor{red}{Q: what is $\rvx_i$?} \textcolor{blue}{A: related to the reproducing property}.) And KSD is defined as:
+\begin{equation}\label{eq.KSD}
+    \sqrt{S(q, p)} = \max_{f \in \mathcal{H}}\E_{q(\rvx)}\left[\mathcal{A}_p f(\rvx)\right], \quad s.t. \quad \|f\|_{\mathcal{H}} \leq 1.
+\end{equation}
+
+To use a RKHS $\mathcal{H}$ as $\mathcal{F}$, we should make sure that $\forall f \in \mathcal{H}$ is in the \textit{Stein class} of $p$, and this is carefully discussed in Section 3 of \citep{liu2016kernelized}, in the following we simply assume $k(\rvx, \cdot)$ and $k(\cdot, \rvx)$ are in the \textit{Stein class} of $p$ for any fixed $\rvx$.
+
+Our goal is to derive a computational tractable closed form solution to \eqref{eq.KSD}. First, by the \textcolor{red}{reproducing property of RKHS} \citep{sejdinovic2012rkhs}, we have:
+\begin{align}
+    f(\rvx) &= \langle f(\cdot), k(\rvx, \cdot) \rangle_{\mathcal{H}}, \\
+    \nabla_\rvx f(\rvx) &= \langle f(\cdot), \nabla_\rvx k(\rvx, \cdot) \rangle_{\mathcal{H}},
+\end{align}
+with the reproducing property and the definition of Stein's operator, we have:
+\begin{align}
+    \E_{q(\rvx)}\left[ \mathcal{A}_p f(\rvx) \right] &= \E_{q(\rvx)}\left[ \nabla_\rvx \log p(\rvx) f(\rvx) + \nabla_\rvx f(\rvx) \right] \\
+    &= \E_{q(\rvx)}\left[ \nabla_\rvx \log p(\rvx) \langle f(\cdot), k(\rvx, \cdot) \rangle_\mathcal{H} + \langle f(\cdot), \nabla_\rvx k(\rvx, \cdot) \rangle_\mathcal{H}\right] \\
+    &= \langle f(\cdot), \E_{q(\rvx)}\left[ k(\rvx, \cdot)\nabla_\rvx \log p(\rvx) + \nabla_\rvx k(\rvx, \cdot)\right] \rangle_\mathcal{H} \label{eq.linearity}\\
+    &= \langle f(\cdot), \E_{q(\rvx)}\left[ \mathcal{A}_{p}k(\rvx, \cdot)\right] \rangle_\mathcal{H} \\
+    &= \langle f(\cdot), \beta_{q, p}(\cdot) \rangle_\mathcal{H}, \label{eq.betaqp}
+\end{align}
+\eqref{eq.linearity} holds because of the linearity of expectation and inner product operation, in \eqref{eq.betaqp} we define $\beta_{q, p}(\cdot) = \E_{q(\rvx)}\left[ \mathcal{A}_{p}k(\rvx, \cdot)\right]$, and similar to \eqref{eq.SDoptimization}, we have the optimal solution to \eqref{eq.KSD}:
+\begin{equation}
+    f^*(\cdot) = \beta_{q, p}(\cdot) / \| \beta_{q, p}(\cdot) \|_{\mathcal{H}},
+\end{equation}
+and $\sqrt{S(q, p)} = \| \beta_{q, p}(\cdot) \|_{\mathcal{H}}$, $S(q, p) = \| \beta_{q, p}(\cdot) \|_{\mathcal{H}}^2$. Thus, we have:
+\begin{align}
+    S(q, p) &= \langle \beta_{q, p}(\cdot), \beta_{q, p}(\cdot) \rangle_{\mathcal{H}} \\
+    &= \langle \E_{\rvx \sim q}\left[ \mathcal{A}_p k(\rvx, \cdot) \right], \E_{\rvx' \sim q}\left[ \mathcal{A}_p k(\rvx', \cdot) \right] \rangle_\mathcal{H} \\
+    &= \langle \E_{\rvx \sim q}\left[ (s_p(\rvx) - s_q(\rvx)) k(\rvx, \cdot) \right], \E_{\rvx' \sim q}\left[ (s_p(\rvx') - s_q(\rvx')) k(\rvx', \cdot) \right] \rangle_\mathcal{H} \label{eq.scoredef}\\
+    &= \E_{\rvx, \rvx' \sim q}\left[ (s_p(\rvx) - s_q(\rvx))^\top \underbrace{k(\rvx, \rvx') (s_p(\rvx') - s_q(\rvx'))}_{\text{\textcircled{1}}} \right], \label{eq.KSDdef}
+\end{align}
+we use $s_p(\rvx)$ in \eqref{eq.scoredef} to denote $\nabla_\rvx \log p(\rvx)$, and the equality holds because of \lemref{lemma.1}. The form in \eqref{eq.KSDdef} still contains the intractable $s_q(\cdot)$, we will further make it computationally tractable.
+
+First, note that we can apply \lemref{lemma.1} to \textcircled{1} in \eqref{eq.KSDdef} by keeping $\rvx$ fixed (denote $k(\rvx, \rvx') = k_\rvx(\rvx')$ in this case), then we have:
+\begin{align}
+    &\qquad \E_{\rvx, \rvx' \sim q}\left[ (s_p(\rvx) - s_q(\rvx))^\top k_{\rvx}(\rvx') (s_p(\rvx') - s_q(\rvx')) \right] \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ (s_p(\rvx) - s_q(\rvx))^\top \mathcal{A}_{p} k_{\rvx}(\rvx') \right] \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ (s_p(\rvx) - s_q(\rvx))^\top \left( k_\rvx(\rvx')\nabla_{\rvx'}\log p(\rvx') + \nabla_{\rvx'}k_{\rvx}(\rvx') \right)   \right] \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ (s_p(\rvx) - s_q(\rvx))^\top v(\rvx, \rvx') \right], \label{eq.KSDlemma2}
+\end{align}
+where we denote $v(\rvx, \rvx') = \mathcal{A}_{p}^{\rvx'}k_{\rvx}(\rvx') = k_\rvx(\rvx')\nabla_{\rvx'}\log p(\rvx') + \nabla_{\rvx'}k_{\rvx}(\rvx') \in \mathbb{R}^d$, and $v_{\rvx'}(\rvx)$ is also in the Stein class, thus \lemref{lemma.2} is applicable to \eqref{eq.KSDlemma2}, and we can have:
+\begin{align}
+    &\qquad \E_{\rvx, \rvx' \sim q} \left[ (s_p(\rvx) - s_q(\rvx))^\top v_{\rvx'}(\rvx) \right] \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ \trace\left( \mathcal{A}_p^\rvx v_{\rvx'}(\rvx) \right) \right] \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ \trace \left( \mathcal{A}_p^{\rvx} \mathcal{A}_p^{\rvx'} k(\rvx, \rvx') \right) \right] \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ \trace \left( \nabla_{\rvx} \log p(\rvx) v_{\rvx'}(\rvx)^\top + \nabla_\rvx v_{\rvx'}(\rvx) \right) \right] \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ \trace \left( \nabla_{\rvx} \log p(\rvx)^\top v_{\rvx'}(\rvx) \right) + \trace\left( \nabla_\rvx v_{\rvx'}(\rvx) \right)\right], \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ s_p(\rvx)^\top k(\rvx, \rvx') s_p(\rvx') + s_p(\rvx)^\top \nabla_{\rvx'}k(\rvx, \rvx') + \trace\left( \nabla_\rvx k(\rvx, \rvx')s_p(\rvx')^\top \right) + \trace\left( \nabla_\rvx \nabla_{\rvx'}k(\rvx, \rvx') \right)\right] \\
+    &= \E_{\rvx, \rvx' \sim q} \left[ s_p(\rvx)^\top k(\rvx, \rvx') s_p(\rvx') + s_p(\rvx)^\top \nabla_{\rvx'}k(\rvx, \rvx') +  s_p(\rvx')^\top \nabla_\rvx k(\rvx, \rvx') + \trace\left( \nabla_\rvx \nabla_{\rvx'}k(\rvx, \rvx') \right) \right],
+\end{align}
+now the intractable $s_q(\rvx)$ terms are removed from the formulation of KSD.
+
+\section{Stein Variational Gradient Descent}
+\subsection{Multi-dimensional KSD}
+In the following, we will consider data points take values in $\mathcal{X} \subset \mathbb{R}^d$ and $\bm \phi: \mathcal{X} \to \mathbb{R}^d$. We can apply the Stein identity in \eqref{eq.SteinIdentity} again by taking $\bm\phi(\rvx)$ as the $f(\rvx)$, a tiny difference is now $\rvx \in \mathbb{R}^d$ and $\bm\phi(\rvx) = \left[ \phi_1(\rvx), \cdots, \phi_d(\rvx) \right]^\top$ are both $d$-dimensional vectors, and $\mathcal{A}_p \bm\phi(\rvx) = \bm\phi(\rvx)\nabla_\rvx\log p(\rvx)^\top + \nabla_\rvx \bm\phi(\rvx) \in \mathbb{R}^{d\times d}$. We will also use $\mathcal{H}^d$ to denote the space of vector functions $\bm f = \left[ f_1, \cdots, f_d \right]$ with $f_d \in \mathcal{H}$, whose inner product is given by $\langle \bm f , \bm g \rangle_{\mathcal{H}^d} = \sum_{i=1}^d \langle f_i, g_i \rangle_{\mathcal{H}}$. And the Stein discrepancy which searches the $\bm \phi$ in the RKHS $\mathcal{H}^d$  is given by:
+\begin{equation}\label{eq.KSDtrace}
+    \sqrt{S(q, p)} = \max_{\bm \phi \in \mathcal{H}^d} \{ \E_{\rvx \sim q}\left[ \trace\left( \mathcal{A}_p \bm \phi(\rvx) \right) \right] \qquad s.t. \qquad \|\bm \phi\|_{\mathcal{H}^d} \leq 1 \},
+\end{equation}
+and the objective of \eqref{eq.KSDtrace} can be further written as:
+\begin{align}
+    &\qquad \E_{q(\rvx)} \left[ \trace\left( \mathcal{A}_p \bm \phi(\rvx) \right) \right] \\
+    &= \E_{q(\rvx)} \left[ \trace\left( \bm\phi(\rvx) \nabla_\rvx \log p(\rvx)^\top \right) + \trace\left( \nabla_\rvx \bm \phi(\rvx) \right) \right] \\
+    &= \E_{q(\rvx)} \left[ \sum_{i=1}^d\left( \frac{\partial}{\partial \rvx_i}\phi_i(\rvx) + \frac{\partial}{\partial \rvx_i}\log p(\rvx)\phi_i(\rvx) \right) \right] \label{eq.traceKSD},
+\end{align}
+and since every $\phi_i(\cdot)$ comes from the RKHS with reproducing kernel $k(\cdot, \cdot)$, by the reproducing property we can have:
+\begin{align}
+    \phi_i(\rvx) &= \langle \phi_i(\cdot), k(\rvx, \cdot) \rangle_\mathcal{H}, \\
+    \frac{\partial}{\partial \rvx_i}\phi_i(\rvx) &= \langle \phi_i(\cdot), \frac{\partial}{\partial \rvx_i}k(\rvx, \cdot) \rangle_{\mathcal{H}},
+\end{align}
+thus \eqref{eq.traceKSD} can be further derived as:
+\begin{align}
+    &\qquad \E_{q(\rvx)} \left[ \sum_{i=1}^d\left( \frac{\partial}{\partial \rvx_i}\phi_i(\rvx) + \frac{\partial}{\partial \rvx_i}\log p(\rvx)\phi_i(\rvx) \right) \right] \\
+    &= \sum_{i=1}^d \langle \phi_i(\cdot), \E_{q(\rvx)}\left[ \frac{\partial}{\partial \rvx_i}\log p(\rvx) k(\rvx, \cdot) + \frac{\partial}{\partial \rvx_i} k(\rvx, \cdot) \right] \rangle_{\mathcal{H}},
+\end{align}
+the optimal unnormalized $\tilde{\bm \phi}(\cdot)$ is given by simply setting its $i$-th entry to $\E_{q(\rvx)}\left[ \frac{\partial}{\partial \rvx_i}\log p(\rvx) k(\rvx, \cdot) + \frac{\partial}{\partial \rvx_i} k(\rvx, \cdot) \right]$, which means $\tilde{\bm \phi}^*(\cdot) = \E_{q(\rvx)}\left[ \mathcal{A}_p k(\rvx, \cdot) \right]$ (note that $\mathcal{A}_p k(\rvx, \cdot) \in \mathbb{R}^{d}$) and $\bm \phi^*(\rvx) = \tilde{\bm \phi}^*(\rvx) / \|\tilde{\bm \phi}^*(\cdot)\|_{\mathcal{H}^d}$.
+
+\subsection{Variational inference with smooth transforms}
+The general idea of Stein Variational Gradient Descent (SVGD) \citep{liu2016SVGD} is incrementally transforming a set of data points $\{\rvx_i\}_{i=1}^n, \rvx_i \in \mathbb{R}^d$ sampled from a known initial distribution $q(\rvx)$ to approximate a target distribution $p(\rvx) = \tilde{p}(\rvx) / Z$ which may be unnormalized. The transformation is in the form of: $\bm T(\rvx) = \rvx + \epsilon \bm\phi(\rvx)$, where $\bm\phi(\rvx) \in \mathbb{R}^d$ is a smooth function that characterizes the direction and the scalar $\epsilon$ represents the magnitude.
+
+
+Denote $q_{\left[ \bm T \right]}$ as the density of the transformed points, when $\left| \epsilon \right|$ is sufficiently small, $\bm T$ is guranteed to be invertible, and denote $\rvz = \bm T(\rvx)$, we have:
+\begin{equation}
+    q_{\left[\bm T\right]}(\rvz) = q(\bm T^{-1}(\rvz))\left| \det \left( J_{\bm T}^{-1} (\rvz) \right) \right|.
+\end{equation}
+SVGD proposes to use $q_{\left[ \bm T \right]}(\rvz)$ to do variational inference by updating the particles to get close to $p(\rvx)$ in terms of KL divergence. And there is a surprising connection between \textit{Stein operator} and the derivative of KL divergence w.r.t. the perturbation magnitude $\epsilon$:
+\begin{align}
+    &\qquad \left.\nabla_\epsilon \KL\left( q_{\left[ \bm T \right]} \parallel p \right)\right|_{\epsilon = 0} \\
+    &= \left.\nabla_\epsilon \KL\left( q \parallel p_{\left[ \bm T^{-1} \right]} \right)\right|_{\epsilon = 0} \\
+    &= \left. \E_{\rvx\sim q} \left[ -\nabla_\epsilon \log p_{\left[ \bm T^{-1} \right]}\left(\rvx\right) \right] \right|_{\epsilon = 0} \\
+    &= \left. \E_{\rvx\sim q} \left[ -\nabla_\epsilon \left( \log p\left( \bm T_\epsilon (\rvx) \right) + \log \left| \det J_{\bm T}(\rvx) \right| \right) \right] \right|_{\epsilon = 0} \\
+    &= \left. -\E_{\rvx\sim q} \left[ s_p(\bm T_\epsilon(\rvx))^\top \nabla_\epsilon \bm T_\epsilon(\rvx) + \trace\left( J_{\bm T}(\rvx)^{-1} \nabla_\epsilon J_{\bm T}(\rvx) \right) \right] \right|_{\epsilon = 0}\\
+    &= -\E_{\rvx\sim q} \left[ s_p(\rvx)^\top \bm\phi(\rvx) + \trace\left( \bm I \nabla_\rvx \bm \phi(\rvx) \right) \right] \\
+    &= -\E_{\rvx \sim q} \left[ \trace\left( \mathcal{A}_p \bm \phi(\rvx) \right) \right].
+\end{align}
+We can see it is equivalent to the objective in \eqref{eq.KSDtrace}, and when we consider $\bm \phi(\cdot)$ in the unit ball of $\mathcal{H}^d$ , the optimal direction that gives \textbf{the steepest descent on the KL divergence} has a closed form solution as $\phi^*_{q, p}(\cdot) = \beta_{q, p}(\cdot) = \E_{\rvx \sim q} \left[ \mathcal{A}_p k(\rvx, \cdot) \right] = \E_{\rvx \sim q} \left[ \nabla_\rvx \log p(\rvx) k(\rvx, \cdot) + \nabla_\rvx k(\rvx, \cdot) \right] $, this is computationally tractable.
+
+\section{Amortizd SVGD}
+"SVGD and other particle based methods become ineficient when we need to apply them repeatedly on a large number of different, but similar target distributions for multiple tasks, because they can not leverage the similarity between the different distributions and may require a large memory to restore a large number of particles."
+
+\bibliographystyle{abbrvnat} 
+\bibliography{reference}
+
+\appendix
+\section{The reproducing property}
+Refer to \citep{sejdinovic2012rkhs}.\\
+% \includegraphics[width=18cm]{img/rkhs.pdf}
+\section{Lemmas}
+\begin{lemma}[First half of Lemma 2.3 of \citep{liu2016kernelized}] \label{lemma.1}
+    Assume $p(\rvx)$ and $q(\rvx)$ are smooth densities supported on $\mathcal{X}$ and \textbf{scalar-valued} function $f(\rvx)$ is in the Stein class of $q$, we have:
+    $$
+    \E_{\rvx \sim q}\left[ \mathcal{A}_p f(\rvx) \right] = \E_{\rvx \sim q}\left[  (s_p(\rvx) - s_q(\rvx))f(\rvx)\right].
+    $$
+\end{lemma}
+
+\begin{lemma}[Second half of Lemma 2.3 of \citep{liu2016kernelized}] \label{lemma.2}
+    Assume $p(\rvx)$ and $q(\rvx)$ are smooth densities supported on $\mathcal{X}$ and when $\bm f(\rvx)$ is a $d \times 1$ \textbf{vector-valued} function in the Stein class of $q$, we have:
+    $$
+    \E_{\rvx \sim q}\left[ (s_p(\rvx) - s_q(\rvx))^\top \bm f(\rvx) \right] = \E_{\rvx \sim q}\left[ \trace\left( \mathcal{A}_p \bm f(\rvx) \right) \right].
+    $$
+\end{lemma}
+\section{Introduction to measure theory}
+\begin{itemize}
+    \item Limit of a sequence: a sequence $x_1, x_2, \cdots, x_n$ is said to converge to $x$ or have limit if ...
+    \item Cauchy sequence
+    \item Algebraic structure
+    \item measure space: $(\mathcal{X}, \mathcal{A}, \mu)$, where $\mathcal{X}$ is a set, $\mathcal{A}$ is a class of subsets of $\mathcal{X}$, and $\mu$ is a function that attach a nonnegative number to every set in $\mathcal{A}$.
+    \item $\sigma$-algebra: $\mathcal{A}$ is call a $\sigma$-field of $\mathcal{X}$ if: 
+    \begin{itemize}
+        \item both $\emptyset$ and $\mathcal{X}$ in $\mathcal{A}$
+        \item if $A$ in $\mathcal{A}$, then $A^c$ in $\mathcal{A}$ 
+        \item if $A_1, \cdots, A_n$ is a countable collection of sets in $\mathcal{A}$, then both $\cup_i A_i$ and $\cap_i A_i$ in $\mathcal{A}$ 
+    \end{itemize}
+    \item measure: a function $\mu$  defined on $\mathcal{A}$ is called a (countably additive, nonnegative) measure if: (1)\quad (2)\quad (3)
+    \item $(\Omega, \mathcal{F}, \mathbb{P})$ used to denote a probability space
+    \item countable additive
+    \item metric space, complete metric space, normed space
+    \item inner product on a vector space
+    \item Hilbert space: a vector space where inner product is defined, and contains all the limits of Cauchy sequences of functions
+    \item kernel: $k: \mathcal{X} \times \mathcal{X} \to \mathbb{R}$ is a kernel if exists a $\mathbb{R}$-Hilbert space and a map $\phi: \mathcal{X} \to 
+    \mathcal{H}$ s.t. $k(x, x') = \langle \phi(x), \phi(x') \rangle_{\mathcal{H}}, \forall x, x' \in \mathcal{X}$ 
+\end{itemize}
+
+\end{document}
